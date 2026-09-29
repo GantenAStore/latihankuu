@@ -1,2 +1,1 @@
-// Isi dari Supabase → Project Settings → API. Kosong = mode lokal (tanpa database).
-window.LK_SUPABASE={url:"",anonKey:""};
+window.LK_SUPABASE={url:"sb_publishable_ScDQr3a7la0FPFAfN8xDrg_NFrWA3KW",anonKey:"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9mb29ka29wZGh5cWticXl0Zm1pIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA2ODU0MTcsImV4cCI6MjEwNjI2MTQxN30.pa8uBhAVyZy9-_ObSUC-TPII_8eXEBIQpB6dMKyyE5w"};
