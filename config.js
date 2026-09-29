@@ -1,1 +1,0 @@
-window.LK_SUPABASE={url:"https://supabase.com/dashboard/project/ofoodkopdhyqkbqytfmi",anonKey:"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9mb29ka29wZGh5cWticXl0Zm1pIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA2ODU0MTcsImV4cCI6MjEwNjI2MTQxN30.pa8uBhAVyZy9-_ObSUC-TPII_8eXEBIQpB6dMKyyE5w"};
