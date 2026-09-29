@@ -717,14 +717,21 @@ let DBSYNCING = false;
 
 async function dbLoadProfile(){
   const {data:{user}} = await supabaseClient.auth.getUser();
-  if(!user){ DBPROFILE=null; st.set("sess",""); return null; }
-  const {data,error}=await supabaseClient.from("profiles").select("*").eq("id",user.id).maybeSingle();
-  if(error){ console.error(error); return null; }
-  if(data){
-    DBPROFILE=data;
-    st.set("sess",data.username);
-    const U=users(); U[data.username]={...(U[data.username]||{}),u:data.username,n:data.display_name||data.username,xp:data.xp||0,k:U[data.username]?.k||"12",dbid:data.id}; st.set("users",U);
+  if(!user){ DBPROFILE=null; return null; } /* jangan hapus sesi lokal/admin */
+  let {data,error}=await supabaseClient.from("profiles").select("*").eq("id",user.id).maybeSingle();
+  if(error) console.error("profiles",error);
+  if(!data){
+    /* profil belum ada (trigger DB gagal / belum dibuat) -> buat otomatis */
+    const meta=user.user_metadata||{};
+    const username=String(meta.username||(user.email||"").split("@")[0]||"").toLowerCase();
+    const display_name=meta.display_name||username;
+    const ins=await supabaseClient.from("profiles").insert({id:user.id,username,display_name}).select("*").maybeSingle();
+    if(ins.error) console.error("gagal membuat profil",ins.error);
+    data=ins.data||{id:user.id,username,display_name,xp:0,level:1};
   }
+  DBPROFILE=data;
+  st.set("sess",data.username);
+  const U=users(); U[data.username]={...(U[data.username]||{}),u:data.username,n:data.display_name||data.username,xp:data.xp||0,k:U[data.username]?.k||"12",dbid:data.id}; st.set("users",U);
   return data;
 }
 
@@ -733,9 +740,11 @@ async function dbSyncStart(){
   try{ await dbLoadProfile(); }finally{ DBSYNCING=false; render(); if(location.hash==="#diskusi") renderPosts(); }
 }
 
-supabaseClient.auth.onAuthStateChange((_event,session)=>{
-  if(!session){ DBPROFILE=null; st.set("sess",""); }
-  else dbLoadProfile().then(()=>render());
+supabaseClient.auth.onAuthStateChange((event,session)=>{
+  setTimeout(()=>{
+    if(event==="SIGNED_OUT"){ DBPROFILE=null; if(sess()!=="admin") st.set("sess",""); render(); }
+    else if(session){ dbLoadProfile().then(()=>render()); }
+  },0);
 });
 
 async function dbLogin(username,password){
@@ -778,14 +787,34 @@ async function dbRenderBoard(){
   el.innerHTML=L.length?L.map((x,i)=>`<div class="row"><span style="width:26px">${["🥇","🥈","🥉"][i]||(i+1)}</span><span style="flex:1">${esc(x.display_name||x.username)}${x.id===meId?" (kamu)":""}</span><b>${x.xp||0} XP</b></div>`).join(""):"<p>Belum ada data online.</p>";
 }
 
+let DBPOSTERR=null;
 async function dbPosts(){
-  const {data,error}=await supabaseClient.from("discussions").select("id,user_id,title,content,material,created_at,profiles(username,display_name),comments(id,user_id,content,created_at,profiles(username,display_name)),discussion_likes(user_id)").order("created_at",{ascending:false}).limit(200);
-  if(error){console.error(error);return [];} return data||[];
+  DBPOSTERR=null;
+  const d=await supabaseClient.from("discussions").select("*").order("created_at",{ascending:false}).limit(200);
+  if(d.error){console.error("discussions",d.error);DBPOSTERR=d.error.message;return [];}
+  const P=d.data||[]; if(!P.length)return [];
+  const ids=P.map(p=>p.id);
+  const [c,l]=await Promise.all([
+    supabaseClient.from("comments").select("*").in("discussion_id",ids).order("created_at",{ascending:true}),
+    supabaseClient.from("discussion_likes").select("*").in("discussion_id",ids)
+  ]);
+  if(c.error)console.error("comments",c.error); if(l.error)console.error("likes",l.error);
+  const cm=c.data||[],lk=l.data||[];
+  const uids=[...new Set([...P.map(p=>p.user_id),...cm.map(x=>x.user_id)].filter(Boolean))];
+  const pm={};
+  if(uids.length){
+    const pr=await supabaseClient.from("profiles").select("id,username,display_name").in("id",uids);
+    if(pr.error)console.error("profiles",pr.error);
+    (pr.data||[]).forEach(x=>{pm[x.id]=x;});
+  }
+  return P.map(p=>({...p,profiles:pm[p.user_id]||null,
+    comments:cm.filter(x=>x.discussion_id===p.id).map(x=>({...x,profiles:pm[x.user_id]||null})),
+    discussion_likes:lk.filter(x=>x.discussion_id===p.id)}));
 }
 
 async function renderPosts(){
   const el=$("#ps"); if(!el)return;
-  let P=await dbPosts(); const cf=st.get("dcat",""); const q=(($("#ds")&&$("#ds").value)||"").toLowerCase();
+  let P=await dbPosts(); if(DBPOSTERR){el.innerHTML="<p style=\"color:var(--r)\">Gagal memuat diskusi: "+esc(DBPOSTERR)+"</p>";return;} const cf=st.get("dcat",""); const q=(($("#ds")&&$("#ds").value)||"").toLowerCase();
   if(cf)P=P.filter(p=>p.material===cf); if(q)P=P.filter(p=>(p.title||p.content||"").toLowerCase().includes(q));
   const cu=DBPROFILE&&DBPROFILE.id;
   el.innerHTML=P.length?P.map(p=>{
@@ -801,8 +830,10 @@ async function addPost(){
   if(!DBPROFILE){alert("Silakan masuk terlebih dahulu.");return;}
   const content=$("#pt").value.trim(); if(!content)return;
   const material=$("#pc").value; const title=content.length>70?content.slice(0,67)+"…":content;
+  const btn=document.querySelector("button[onclick='addPost()']"); if(btn)btn.disabled=true;
   const {error}=await supabaseClient.from("discussions").insert({user_id:DBPROFILE.id,title,content,material});
-  if(error){alert("Diskusi gagal disimpan: "+error.message);return;}
+  if(btn)btn.disabled=false;
+  if(error){console.error(error);alert("Diskusi gagal disimpan: "+error.message);return;}
   $("#pt").value=""; await renderPosts();
 }
 
@@ -826,23 +857,58 @@ logout=async function(){await supabaseClient.auth.signOut();DBPROFILE=null;st.se
 
 const _oldDoLogin=doLogin;
 doLogin=async function(){
-  const u=$("#lu").value.trim().toLowerCase(),p=$("#lp").value;
+  const er=$("#er"),u=$("#lu").value.trim().toLowerCase(),p=$("#lp").value;
+  if(!u||!p){er.textContent="Isi nama pengguna dan kata sandi.";return;}
   if(u==="admin"){return _oldDoLogin();}
-  const r=await dbLogin(u,p);
-  if(r.error){$("#er").textContent="Nama pengguna atau kata sandi salah.";return;}
-  go("home");render();
+  er.textContent="Memproses…";
+  try{
+    const r=await dbLogin(u,p);
+    if(r.error){
+      console.error("login",r.error);
+      /* akun lama yang dibuat di perangkat ini (sebelum mode online) */
+      const x=users()[u];
+      if(x&&x.ph&&x.ph===await H(CFG.salt+":"+p)){st.set("sess",u);go("home");render();return;}
+      const m=String(r.error.message||"").toLowerCase();
+      er.textContent=m.includes("not confirmed")?"Akun belum dikonfirmasi. Hubungi admin.":m.includes("invalid login")?"Nama pengguna atau kata sandi salah.":"Gagal masuk: "+r.error.message;
+      return;
+    }
+    if(!sess()){er.textContent="Profil akun tidak ditemukan. Hubungi admin.";return;}
+    go("home");render();
+  }catch(e){
+    console.error(e);er.textContent="Tidak dapat terhubung ke server. Periksa koneksi internet.";
+  }
 };
 
 const _oldDoReg=doReg;
 doReg=async function(){
   const g=id=>$("#"+id).value.trim(),e=$("#er"),u=g("ru").toLowerCase(),p=$("#rp").value;
+  const taken=()=>{e.textContent="Nama pengguna \""+u+"\" sudah dipakai orang lain. Silakan pilih nama pengguna yang lain.";const i=$("#ru");if(i)i.focus();};
   if(!g("rn")||!u||!g("rs")||!g("rt")||!g("rk"))return e.textContent="Lengkapi nama, nama pengguna, sekolah, tanggal lahir, dan kelas.";
   if(!/^[a-z0-9_]{3,20}$/.test(u)||u==="admin")return e.textContent="Nama pengguna 3–20 karakter: huruf kecil, angka, atau _.";
   if(p.length<6)return e.textContent="Kata sandi minimal 6 karakter.";
-  const r=await dbRegister({username:u,display_name:g("rn")},p);
-  if(r.error)return e.textContent=r.error.message.includes("already registered")?"Nama pengguna sudah terdaftar.":r.error.message;
-  const U=users();U[u]={n:g("rn"),s:g("rs"),t:g("rt"),k:g("rk"),g:g("rg"),w:g("rw"),xp:0};st.set("users",U);
-  if(r.data?.session){await dbLoadProfile();go("home");render();}else e.textContent="Akun berhasil dibuat. Jika email confirmation aktif, cek email konfirmasi lalu masuk kembali.";
+  e.textContent="Memeriksa nama pengguna…";
+  try{
+    /* akun lama yang tersimpan di perangkat ini */
+    if(users()[u]&&users()[u].ph)return taken();
+    /* cek di database */
+    const chk=await supabaseClient.from("profiles").select("id").ilike("username",u).limit(1);
+    if(!chk.error&&chk.data&&chk.data.length)return taken();
+    const r=await dbRegister({username:u,display_name:g("rn")},p);
+    if(r.error){
+      const m=String(r.error.message||"").toLowerCase();
+      if(m.includes("already")||m.includes("registered")||m.includes("duplicate"))return taken();
+      return e.textContent="Gagal mendaftar: "+r.error.message;
+    }
+    /* Supabase (saat konfirmasi email aktif) tidak memberi error untuk email yang sudah ada,
+       tetapi mengembalikan user tanpa identities */
+    const usr=r.data&&r.data.user;
+    if(usr&&Array.isArray(usr.identities)&&usr.identities.length===0)return taken();
+    e.textContent="";
+    const U=users();U[u]={...(U[u]||{}),n:g("rn"),s:g("rs"),t:g("rt"),k:g("rk"),g:g("rg"),w:g("rw"),xp:(U[u]&&U[u].xp)||0};st.set("users",U);
+    if(r.data?.session){await dbLoadProfile();go("home");render();}else e.textContent="Akun berhasil dibuat. Jika email confirmation aktif, cek email konfirmasi lalu masuk kembali.";
+  }catch(err){
+    console.error(err);e.textContent="Tidak dapat terhubung ke server. Periksa koneksi internet.";
+  }
 };
 
 /* XP lokal tetap dipakai untuk tampilan lama, lalu disinkronkan ke Supabase */
