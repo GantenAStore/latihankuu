@@ -188,12 +188,21 @@ const M=[
 {m:"Trigonometri",sub:[["Perbandingan & Persamaan Trigonometri","Nilai sudut istimewa, identitas, dan pemecahan persamaan."]]},
 {m:"Statistika dan Peluang",sub:[["Statistika & Peluang","Mean, median, varians, kombinasi, dan peluang kejadian."]]}];
 const CATS=["TKA Matematika","TKA Bahasa Indonesia","TKA Bahasa Inggris","SNBT","Tips belajar","Tanya soal"];
-const TABS=[["home","Beranda"],["latihan","Latihan"],["tka","TKA"],["tryout","Tryout"],["materi","Materi"],["diskusi","Diskusi"],["papan","Peringkat"],["premium","Premium"],["profil","Profil"]];
+const TABS=[["home","Beranda"],["latihan","Latihan"],["tka","TKA"],["tryout","Tryout"],["materi","Materi"],["diskusi","Diskusi"],["papan","Peringkat"],["fitur","Fitur Pro"],["premium","Premium"],["profil","Profil"]];
 const $=s=>(s==="#app"&&window.__AC)?window.__AC:document.querySelector(s);
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const st={get(k,d){try{return JSON.parse(localStorage.getItem(k))??d}catch(e){return d}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
 
-const CFG={wa:"6282179988539",salt:"latihanku-v1",rahasia:"GANTI-RAHASIA-INI",adminHash:"423486fe4b242ad0d4f5d11fbc82eb88613298fcaacd4ee19c00135fff3f46f9",plans:[{n:"1 Bulan",d:30,h:"Rp49.000"},{n:"3 Bulan",d:90,h:"Rp129.000"}]};
+const CFG={wa:"6282179988539",salt:"latihanku-v1",rahasia:"GANTI-RAHASIA-INI",adminHash:"423486fe4b242ad0d4f5d11fbc82eb88613298fcaacd4ee19c00135fff3f46f9",plans:[
+{n:"Pass 7 Hari",d:7,h:"Rp15.000",t:"P"},
+{n:"1 Bulan",d:30,h:"Rp49.000",t:"P"},
+{n:"3 Bulan",d:90,h:"Rp129.000",t:"P",b:"Hemat 12%"},
+{n:"6 Bulan",d:180,h:"Rp239.000",t:"P",b:"Hemat 19%"},
+{n:"1 Tahun",d:365,h:"Rp429.000",t:"P",b:"Hemat 27%"},
+{n:"1 Bulan",d:30,h:"Rp79.000",t:"X"},
+{n:"3 Bulan",d:90,h:"Rp199.000",t:"X",b:"Hemat 16%"},
+{n:"6 Bulan",d:180,h:"Rp369.000",t:"X",b:"Hemat 22%"},
+{n:"1 Tahun",d:365,h:"Rp659.000",t:"X",b:"Hemat 30%"}]};
 const PDFJS="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js",PDFW="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
 let ANN="",PQ=[];
 async function H(x){const b=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(x));return [...new Uint8Array(b)].map(v=>v.toString(16).padStart(2,"0")).join("")}
@@ -203,7 +212,9 @@ const sess=()=>st.get("sess","");
 const K=k=>k+":"+sess();
 const users=()=>st.get("users",{});
 function me(){const c=sess();if(c==="admin")return{admin:true,u:"admin",n:"Admin"};const x=users()[c];return x?{...x,u:c}:null}
-const isPro=()=>{const u=me();return !!u&&(!!u.admin||(u.exp||0)>=ymd(new Date()))};
+const isPro=()=>{const u=me(),t=ymd(new Date());return !!u&&(!!u.admin||(u.exp||0)>=t||(u.xexp||0)>=t)};
+const isPlus=()=>{const u=me();return !!u&&(!!u.admin||(u.xexp||0)>=ymd(new Date()))};
+const lockPlus=(t)=>`<div class="lock">⭐ <b>${t}</b> khusus paket Premium Plus.<br><button class="btn" onclick="go('premium')">Lihat paket Plus</button></div>`;
 function logout(){st.set("sess","");render()}
 function mergeQ(l){const key=x=>x.id||x.k+"|"+x.q,seen=new Set(Q.map(key));l.forEach(x=>{if(!seen.has(key(x))){seen.add(key(x));Q.push(x)}})}
 function adminQ(){const L=st.get("soalLocal",null);if(L)mergeQ(L)}
@@ -314,18 +325,20 @@ async function doReg(){
   st.set("users",U);st.set("sess",u);go("home");render();
 }
 async function chgPw(){const p=$("#np").value;if(p.length<6){alert("Minimal 6 karakter.");return}const U=users();U[sess()].ph=await H(CFG.salt+":"+p);st.set("users",U);alert("Kata sandi diperbarui.")}
-function beli(i){const u=me(),x=CFG.plans[i];window.open("https://wa.me/"+CFG.wa+"?text="+encodeURIComponent("Halo Admin LatihanKu, saya ingin beli Premium.\nNama: "+u.n+"\nUsername: "+u.u+"\nPaket: "+x.n+" ("+x.h+")"),"_blank")}
+function beli(i){const u=me(),x=CFG.plans[i],tn=x.t==="X"?"Premium Plus":"Premium";window.open("https://wa.me/"+CFG.wa+"?text="+encodeURIComponent("Halo Admin LatihanKu, saya ingin beli "+tn+".\nNama: "+u.n+"\nUsername: "+u.u+"\nPaket: "+tn+" "+x.n+" ("+x.h+")"),"_blank")}
 async function activate(){
-  const c=$("#cd").value.trim().toUpperCase(),m=c.match(/^LK-(\d{8})-([0-9A-F]{10})$/),u=sess();
-  if(!m||+m[1]<ymd(new Date())){alert("Kode tidak valid atau sudah kedaluwarsa.");return}
-  if((await H(u+"|"+m[1]+"|"+CFG.rahasia)).slice(0,10).toUpperCase()!==m[2]){alert("Kode ini bukan untuk akunmu.");return}
-  const U=users();U[u].exp=Math.max(U[u].exp||0,+m[1]);st.set("users",U);alert("Premium aktif!");render();
+  const c=$("#cd").value.trim().toUpperCase(),m=c.match(/^LK(X?)-(\d{8})-([0-9A-F]{10})$/),u=sess();
+  if(!m||+m[2]<ymd(new Date())){alert("Kode tidak valid atau sudah kedaluwarsa.");return}
+  const X=m[1]==="X",inp=X?u+"|"+m[2]+"|X|"+CFG.rahasia:u+"|"+m[2]+"|"+CFG.rahasia;
+  if((await H(inp)).slice(0,10).toUpperCase()!==m[3]){alert("Kode ini bukan untuk akunmu.");return}
+  const U=users(),f=X?"xexp":"exp";U[u][f]=Math.max(U[u][f]||0,+m[2]);st.set("users",U);alert(X?"Premium Plus aktif!":"Premium aktif!");render();
 }
 async function genKode(){
   const u=$("#ku").value.trim().toLowerCase();if(!u)return;
-  const d=new Date();d.setDate(d.getDate()+ +$("#kd").value);const e=ymd(d);
-  const c="LK-"+e+"-"+(await H(u+"|"+e+"|"+CFG.rahasia)).slice(0,10).toUpperCase();
-  $("#kr").innerHTML=`<div class="exp"><b>${c}</b><br>Berlaku sampai ${fmtD(e)}. Hanya untuk akun <b>${esc(u)}</b>.<br><br><button class="btn alt" onclick="navigator.clipboard.writeText('Pembayaran diterima ✅ Masukkan kode ini di menu Premium: ${c}');this.textContent='Tersalin'">Salin pesan untuk pembeli</button></div>`;
+  const pl=CFG.plans[+$("#kd").value],X=pl.t==="X",tn=X?"Premium Plus":"Premium";
+  const d=new Date();d.setDate(d.getDate()+pl.d);const e=ymd(d);
+  const c=(X?"LKX-":"LK-")+e+"-"+(await H(X?u+"|"+e+"|X|"+CFG.rahasia:u+"|"+e+"|"+CFG.rahasia)).slice(0,10).toUpperCase();
+  $("#kr").innerHTML=`<div class="exp"><b>${c}</b><br>${tn} ${esc(pl.n)} · berlaku sampai ${fmtD(e)}. Hanya untuk akun <b>${esc(u)}</b>.<br><br><button class="btn alt" onclick="navigator.clipboard.writeText('Pembayaran diterima ✅ Masukkan kode ini di menu Premium: ${c}');this.textContent='Tersalin'">Salin pesan untuk pembeli</button></div>`;
 }
 async function mkHash(){$("#hr").textContent=await H(CFG.salt+":"+$("#hp").value)}
 async function readPdf(f){
@@ -409,7 +422,7 @@ function render(){
   if(!u){authView(location.hash==="#daftar"?"reg":"login");return}
   const T=u.admin?ATABS:TABS;let t=location.hash.slice(1);if(!T.some(x=>x[0]===t))t=T[0][0];
   document.body.classList.toggle("adm",!!u.admin);
-  const p=$("#pro");p.textContent=u.admin?"ADMIN":"PREMIUM";p.classList.toggle("hide",!isPro());
+  const p=$("#pro");p.textContent=u.admin?"ADMIN":isPlus()?"PLUS":"PREMIUM";p.classList.toggle("hide",!isPro());
   if(u.admin){
     $("#nav").innerHTML="";
     const shell=`<div class="admin-wrap"><aside class="admin-side"><div class="side-title">Menu admin</div>
@@ -495,22 +508,40 @@ diskusi(){
   renderPosts();
 },
 premium(){
-  const u=me(),p=isPro(),dl2=u.exp?Math.max(0,Math.round((new Date(+String(u.exp).slice(0,4),+String(u.exp).slice(4,6)-1,+String(u.exp).slice(6,8))-new Date())/864e5)):0;
+  const u=me(),t=ymd(new Date()),pX=(u.xexp||0)>=t,pP=(u.exp||0)>=t;
+  const dl=e=>e?Math.max(0,Math.round((new Date(+String(e).slice(0,4),+String(e).slice(4,6)-1,+String(e).slice(6,8))-new Date())/864e5)):0;
+  const R=(a,b,c,d)=>`<tr><td>${a}</td><td>${b}</td><td>${c}</td><td>${d}</td></tr>`,Y="✅",N="–";
+  const card=(x,i)=>`<div class="card plan"><h3>${x.n}</h3>${x.b?`<span class="tag">${x.b}</span>`:""}<div class="pr">${x.h}</div><small>${x.d} hari akses</small><br><br><button class="btn" onclick="beli(${i})">Chat WhatsApp admin</button></div>`;
+  const list=T=>CFG.plans.map((x,i)=>[x,i]).filter(([x])=>x.t===T).map(([x,i])=>card(x,i)).join("");
   $("#app").innerHTML=`<h2>Paket LatihanKu</h2>
-  ${p&&!u.admin?`<div class="card"><b>✅ Premium aktif</b><p>Berlaku sampai ${fmtD(u.exp)} (${dl2} hari lagi).</p></div>`:""}
-  <table class="cmp"><tr><th></th><th>Gratis</th><th>Premium</th></tr>
-  <tr><td>Soal Mudah & Sedang</td><td>✅</td><td>✅</td></tr>
-  <tr><td>Soal Sulit</td><td>–</td><td>✅</td></tr>
-  <tr><td>Cara menjawab & tips cepat</td><td>–</td><td>✅</td></tr>
-  <tr><td>Tryout</td><td>1×/hari</td><td>Tanpa batas</td></tr>
-  <tr><td>Analisis kelemahan</td><td>–</td><td>✅</td></tr>
-  <tr><td>Soal favorit</td><td>–</td><td>✅</td></tr></table><br>
-  <div class="plans">${CFG.plans.map((x,i)=>`<div class="card plan"><h3>${x.n}</h3><div class="pr">${x.h}</div><button class="btn" onclick="beli(${i})">Chat WhatsApp admin</button></div>`).join("")}</div>
-  <div class="card" style="margin-top:14px"><label>Sudah punya kode aktivasi?<input id="cd" placeholder="LK-…"></label><br><br><button class="btn alt" onclick="activate()">Aktifkan</button></div>
+  ${!u.admin&&pX?`<div class="card"><b>⭐ Premium Plus aktif</b><p>Berlaku sampai ${fmtD(u.xexp)} (${dl(u.xexp)} hari lagi).</p></div>`:""}
+  ${!u.admin&&pP?`<div class="card" style="margin-top:10px"><b>✅ Premium aktif</b><p>Berlaku sampai ${fmtD(u.exp)} (${dl(u.exp)} hari lagi).</p></div>`:""}
+  <table class="cmp"><tr><th></th><th>Gratis</th><th>Premium</th><th>Plus ⭐</th></tr>
+  ${R("Soal Mudah & Sedang",Y,Y,Y)}
+  ${R("Soal Sulit",N,Y,Y)}
+  ${R("Cara menjawab & tips cepat",N,Y,Y)}
+  ${R("Tryout","1×/hari","Tanpa batas","Tanpa batas")}
+  ${R("Paket TKA","1×/hari","Tanpa batas","Tanpa batas")}
+  ${R("Analisis kelemahan",N,Y,Y)}
+  ${R("Soal favorit",N,Y,Y)}
+  ${R("Tantangan Harian (+50 XP)",N,Y,Y)}
+  ${R("Kartu Tips Cepat",N,Y,Y)}
+  ${R("Buku Catatan pribadi",N,Y,Y)}
+  ${R("Remedial Pintar",N,N,Y)}
+  ${R("Rencana Belajar Mingguan",N,N,Y)}
+  ${R("Target Nilai & pelacak progres",N,N,Y)}
+  ${R("Ekspor Laporan Belajar",N,N,Y)}
+  ${R("Lencana eksklusif Plus",N,N,Y)}</table><br>
+  <h3>Premium</h3><div class="plans">${list("P")}</div>
+  <h3 style="margin-top:18px">Premium Plus ⭐ <small style="font-weight:400">(sudah termasuk semua fitur Premium)</small></h3><div class="plans">${list("X")}</div>
+  <div class="card" style="margin-top:14px"><label>Sudah punya kode aktivasi?<input id="cd" placeholder="LK-… atau LKX-…"></label><br><br><button class="btn alt" onclick="activate()">Aktifkan</button></div>
   <div class="card" style="margin-top:14px"><h3>FAQ</h3>
   <p><b>Bagaimana cara bayar?</b><br>Pilih paket, kamu diarahkan ke WhatsApp admin. Setelah transfer, admin mengirim kode aktivasi.</p>
+  <p><b>Apa bedanya Premium dan Plus?</b><br>Plus mencakup semua fitur Premium, ditambah Remedial Pintar, Rencana Belajar Mingguan, Target Nilai, dan Ekspor Laporan.</p>
+  <p><b>Mau naik dari Premium ke Plus?</b><br>Beli paket Plus dan masukkan kodenya. Masa aktif Premium-mu tetap berjalan.</p>
   <p><b>Apakah otomatis diperpanjang?</b><br>Tidak. Kamu perlu membeli lagi dan memasukkan kode baru setelah masa aktif habis.</p>
   <p><b>Kode tidak bisa dipakai?</b><br>Pastikan kamu memasukkannya di akun yang sama saat membeli.</p></div>`;
+  updatePkgCount();
 },
 profil(){
   const u=me(),s=statsFor(),B=badgeList(),xp=myXP();
@@ -576,7 +607,7 @@ pkg(){
   updatePkgCount();
 },
 kode(){
-  $("#app").innerHTML=`<h2>Kode premium</h2><div class="card"><p style="font-size:.9rem">Setelah pembeli membayar lewat WhatsApp, isi nama penggunanya lalu kirim kode ke pembeli.</p><div class="f"><label>Nama pengguna pembeli<input id="ku"></label></div><select id="kd">${CFG.plans.map(x=>`<option value="${x.d}">${x.n}</option>`).join("")}</select> <button class="btn" onclick="genKode()">Buat kode</button><div id="kr"></div></div>`;
+  $("#app").innerHTML=`<h2>Kode premium</h2><div class="card"><p style="font-size:.9rem">Setelah pembeli membayar lewat WhatsApp, isi nama penggunanya, pilih paket, lalu kirim kode ke pembeli.</p><div class="f"><label>Nama pengguna pembeli<input id="ku"></label></div><select id="kd">${CFG.plans.map((x,i)=>`<option value="${i}">${x.t==="X"?"Plus":"Premium"} – ${x.n} (${x.h})</option>`).join("")}</select> <button class="btn" onclick="genKode()">Buat kode</button><div id="kr"></div></div>`;
 },
 impor(){
   const E=EDITQIDX!=null?Q[EDITQIDX]:null,e=E||{k:st.get("lk",10),m:"",l:"Mudah",q:"",o:[],a:0,s:[],t:""},K3=[10,11,12];
@@ -931,6 +962,105 @@ finishExam=function(){
 };
 
 window.addEventListener("load",()=>{dbSyncStart();});
+</script>
+
+<script>
+/* ===== Fitur Premium & Premium Plus ===== */
+function statusTxt(u){
+  if(!u)return"";if(u.admin)return"Admin";const t=ymd(new Date());
+  if((u.xexp||0)>=t)return"Premium Plus sampai "+fmtD(u.xexp);
+  if((u.exp||0)>=t)return"Premium sampai "+fmtD(u.exp);
+  return"Gratis";
+}
+function seeded(a,seed){a=[...a];let s=seed>>>0;const r=()=>{s=(s*1664525+1013904223)%4294967296;return s/4294967296};for(let i=a.length-1;i>0;i--){const j=Math.floor(r()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
+const boxMsg=h=>{$("#box").innerHTML=h};
+
+/* Lencana */
+const _badgeList0=badgeList;
+badgeList=function(){const B=_badgeList0();if(isPlus())B.unshift("⭐ Premium Plus");else if(isPro())B.unshift("💎 Premium");return B};
+
+/* Bonus tantangan harian */
+const _finish0=finish;
+finish=function(){
+  if(cur&&cur._t==="daily"){st.set(K("daily"),ymd(new Date()));addXP(50);boxMsg(`<div class="card"><b>🎉 Tantangan Harian selesai!</b><p>Kamu mendapat bonus +50 XP. Sampai jumpa besok.</p></div>`);return}
+  if(cur&&cur._t==="rmd"){boxMsg(`<div class="card"><b>🩺 Remedial selesai.</b><p>Soal yang sudah kamu kuasai otomatis keluar dari daftar soal salah.</p></div>`);return}
+  _finish0();
+};
+
+/* Premium */
+function startDaily(){
+  if(!isPro())return boxMsg(lockBox("Tantangan Harian"));
+  const d=ymd(new Date());
+  if(st.get(K("daily"),0)===d)return boxMsg(`<div class="card"><b>✅ Tantangan hari ini sudah selesai.</b><p>Kembali besok untuk 5 soal baru dan +50 XP.</p></div>`);
+  const arr=seeded(Q.filter(okK),d).slice(0,5);
+  if(!arr.length)return boxMsg("<p>Belum ada soal tersedia.</p>");
+  cur=arr;cur._t="daily";REV=false;idx=0;mode="p";show();
+}
+let FL=null;
+function openFlash(){
+  if(!isPro())return boxMsg(lockBox("Kartu Tips Cepat"));
+  const a=seeded(Q.filter(q=>okK(q)&&q.t),Date.now()%100000).slice(0,30);
+  if(!a.length)return boxMsg("<p>Belum ada soal dengan tips cepat.</p>");
+  FL={a,i:0,f:false};drawFlash();
+}
+function drawFlash(){
+  const q=FL.a[FL.i];
+  boxMsg(`<div class="card"><span class="tag">${esc(q.m)}</span> <small>${FL.i+1}/${FL.a.length}</small><h3 style="color:inherit;margin:10px 0">${esc(prettyMath(q.q))}</h3>${FL.f?`<div class="exp">💡 ${esc(q.t)}<br><small>Jawaban: ${String.fromCharCode(65+q.a)}. ${esc(prettyMath(q.o[q.a]))}</small></div>`:""}<div class="bar" style="margin-top:10px"><button class="btn alt" onclick="FL.f=!FL.f;drawFlash()">${FL.f?"Sembunyikan":"Lihat tips"}</button><button class="btn" onclick="FL.i=(FL.i+1)%FL.a.length;FL.f=false;drawFlash()">Kartu berikutnya ▶</button></div></div>`);
+}
+function openNote(){
+  if(!isPro())return boxMsg(lockBox("Buku Catatan"));
+  boxMsg(`<div class="card"><h3>Buku Catatan</h3><textarea id="nt" rows="8" placeholder="Tulis rumus, kesalahan yang sering terjadi, atau rencana belajarmu…">${esc(st.get(K("note"),""))}</textarea><br><br><button class="btn" onclick="saveNote()">Simpan catatan</button> <span id="nts" style="font-size:.85rem"></span></div>`);
+}
+function saveNote(){st.set(K("note"),$("#nt").value);$("#nts").textContent="Tersimpan ✓"}
+
+/* Premium Plus */
+function startRemedial(){
+  if(!isPlus())return boxMsg(lockPlus("Remedial Pintar"));
+  const S=st.get(K("stat"),{}),w=weakest(S),W=st.get(K("wrong"),[]).map(i=>Q[i]).filter(Boolean);
+  const weakQ=w?Q.filter(q=>okK(q)&&q.m===w.m):[];
+  const arr=[...new Set([...W,...weakQ])].sort(()=>Math.random()-.5).slice(0,15);
+  if(!arr.length)return boxMsg("<p>Kerjakan beberapa soal dulu supaya sistem tahu kelemahanmu.</p>");
+  cur=arr;cur._t="rmd";REV=false;idx=0;mode="p";show();
+}
+function showPlan(){
+  if(!isPlus())return boxMsg(lockPlus("Rencana Belajar Mingguan"));
+  const S=st.get(K("stat"),{}),rows=Object.entries(S).filter(([m,v])=>v[1]).map(([m,v])=>({m,a:Math.round(v[0]/v[1]*100)})).sort((x,y)=>x.a-y.a);
+  const subs=rows.length?rows.map(r=>r.m):[...new Set(Q.filter(okK).map(q=>q.m))];
+  if(!subs.length)return boxMsg("<p>Belum ada soal tersedia.</p>");
+  const weak=subs.slice(0,3),hari=["Senin","Selasa","Rabu","Kamis","Jumat","Sabtu","Minggu"];
+  const plan=hari.map((h,i)=>i===6?[h,"Tryout penuh, lalu tinjau semua soal yang salah"]:i===5?[h,"Remedial Pintar + Kartu Tips Cepat"]:[h,"Latihan "+weak[i%weak.length]+" (15 soal), tingkat "+(i%2?"Sedang–Sulit":"Mudah–Sedang")]);
+  boxMsg(`<div class="card"><h3>Rencana Belajar Mingguan</h3><p style="font-size:.85rem">${rows.length?"Disusun dari mata pelajaran dengan akurasi terendah: <b>"+weak.map(esc).join(", ")+"</b>.":"Kerjakan latihan dulu agar rencana bisa disesuaikan dengan kelemahanmu."}</p>${plan.map(([h,t])=>`<div class="post"><b>${h}</b><br>${esc(t)}</div>`).join("")}</div>`);
+}
+function showTarget(){
+  if(!isPlus())return boxMsg(lockPlus("Target Nilai"));
+  const t=st.get(K("target"),80),hs=st.get(K("hist"),[]),last=hs.slice(-5),avg=last.length?Math.round(last.reduce((a,h)=>a+h.n,0)/last.length):0,gap=Math.max(0,t-avg);
+  boxMsg(`<div class="card"><h3>Target Nilai Tryout</h3><label>Targetmu (1–100)<input id="tg" type="number" min="1" max="100" value="${t}"></label> <button class="btn" onclick="saveTarget()">Simpan</button><p>Rata-rata 5 tryout terakhir: <b>${avg}</b></p><div class="pbar"><i style="width:${Math.min(100,avg/t*100)}%"></i></div><p style="font-size:.9rem">${!last.length?"Kerjakan tryout dulu untuk mulai melacak progres.":gap?"Kurang "+gap+" poin lagi dari targetmu. Coba Remedial Pintar untuk menutup kelemahan.":"🎉 Targetmu tercapai! Naikkan target agar terus berkembang."}</p></div>`);
+}
+function saveTarget(){st.set(K("target"),Math.max(1,Math.min(100,+$("#tg").value||80)));showTarget()}
+function exportReport(){
+  if(!isPlus())return boxMsg(lockPlus("Ekspor Laporan Belajar"));
+  const u=me(),s=statsFor(),S=st.get(K("stat"),{}),hs=st.get(K("hist"),[]);
+  const L=["LAPORAN BELAJAR LATIHANKU","Nama: "+u.n,"Username: "+u.u,"Kelas: "+u.k,"Tanggal: "+new Date().toLocaleDateString("id-ID"),"","Soal dikerjakan: "+s.tot,"Akurasi: "+s.acc+"%","Streak: "+streak()+" hari","","AKURASI PER MATA PELAJARAN"];
+  Object.entries(S).forEach(([m,v])=>{if(v[1])L.push("- "+m+": "+Math.round(v[0]/v[1]*100)+"% ("+v[0]+"/"+v[1]+")")});
+  L.push("","RIWAYAT TRYOUT");hs.forEach(h=>L.push("- "+h.d+": nilai "+h.n+(h.total?" ("+h.total+" soal)":"")));
+  const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([L.join("\n")],{type:"text/plain;charset=utf-8"}));a.download="laporan-belajar-"+u.u+".txt";document.body.appendChild(a);a.click();a.remove();
+  boxMsg(`<div class="card"><b>📄 Laporan diunduh.</b></div>`);
+}
+
+/* Halaman Fitur Pro */
+V.fitur=function(){
+  const pro=isPro(),plus=isPlus();
+  const items=[
+    ["🎯","Tantangan Harian","5 soal baru setiap hari dengan bonus 50 XP.","startDaily()",pro,"P"],
+    ["🃏","Kartu Tips Cepat","Ulangi trik dan tips cepat dalam bentuk kartu.","openFlash()",pro,"P"],
+    ["📝","Buku Catatan","Simpan rumus dan catatan pribadimu.","openNote()",pro,"P"],
+    ["🩺","Remedial Pintar","15 soal dari kelemahan dan soal yang pernah salah.","startRemedial()",plus,"X"],
+    ["📅","Rencana Belajar Mingguan","Jadwal 7 hari sesuai mata pelajaran terlemahmu.","showPlan()",plus,"X"],
+    ["🏁","Target Nilai","Tetapkan target dan pantau progres tryout.","showTarget()",plus,"X"],
+    ["📄","Ekspor Laporan","Unduh laporan belajar: akurasi dan riwayat nilai.","exportReport()",plus,"X"]
+  ];
+  $("#app").innerHTML=`<h2>Fitur Pro</h2><p style="font-size:.9rem">Status: <b>${esc(statusTxt(me()))}</b></p><div class="plans">${items.map(([ic,t,d,fn,ok,tier])=>`<div class="card plan"><h3>${ic} ${t}</h3><p style="font-size:.9rem">${d}</p><span class="tag">${tier==="X"?"Plus":"Premium"}</span><br><br>${ok?`<button class="btn" onclick="${fn};document.getElementById('box').scrollIntoView({behavior:'smooth'})">Buka</button>`:`<button class="btn alt" onclick="go('premium')">🔒 Buka dengan ${tier==="X"?"Plus":"Premium"}</button>`}</div>`).join("")}</div><div id="box" style="margin-top:14px"></div>`;
+};
 </script>
 </body>
 </html>
